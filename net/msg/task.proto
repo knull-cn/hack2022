@@ -1,0 +1,11 @@
+syntax="proto3";
+package msg;
+option go_package = "../msg";
+
+import "msg.proto";
+
+service TaskManager {
+    rpc NewTask (ReqNewTask )returns (ReplyNewTask){}
+
+    rpc ReportState(ReqReport)returns(ReplyReport){}
+}

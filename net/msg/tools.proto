@@ -1,0 +1,12 @@
+syntax="proto3";
+package msg;
+option go_package = "../msg";
+
+import "msg.proto";
+
+
+
+service ToolsManager {
+  // Sends a greeting
+  rpc Register (ReqRegister) returns (ReplyRegister) {}
+}

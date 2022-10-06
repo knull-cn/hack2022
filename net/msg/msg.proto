@@ -1,0 +1,62 @@
+syntax="proto3";
+package msg;
+
+option go_package = "../msg";
+
+message ClientInfo {
+  string name = 1;
+  string key = 2;
+}
+
+message  TaskInfo {
+  string taskName = 1;
+  string taskKey = 2;
+  string db = 3;
+  string tbl = 4;
+};
+
+enum RespCode{
+  rc_OK = 0;
+};
+
+message  replyBase {
+  RespCode rc = 1;
+  string RespMsg = 2;
+}
+
+message ReqRegister{
+  ClientInfo cli = 1;
+  string taskAddr = 2;
+}
+
+message  ReplyRegister{
+  replyBase rc = 1;
+}
+
+message ReqNewTask{
+  ClientInfo cli = 1;
+  TaskInfo task = 2;
+  string TaskAddr  = 3;
+}
+
+message  ReplyNewTask{
+  replyBase rc = 1;
+}
+
+enum TaskState {
+  ts_Create = 0;
+  ts_Dumpling = 1;
+  ts_Exception = 0x10;
+  ts_Finish = 0x20;
+};
+
+message  ReqReport{
+  ClientInfo cli = 1;
+  TaskInfo task = 2;
+}
+
+message  ReplyReport{
+  replyBase rc = 1;
+  TaskState  state = 2;
+  string progress  = 3;
+}
