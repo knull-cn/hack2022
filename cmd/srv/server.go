@@ -94,36 +94,35 @@ func (cs *Server) waitTaskCli(lis net.Listener) {
 func (cs *Server) task4lightning(task *task.MigrateTask, con net.Conn) {
 	defer cs.wg.Done()
 	dbMetas := []*mydump2.MDDatabaseMeta{}
-	for _, table := range task.Tables {
-		dbMetas = append(dbMetas, &mydump2.MDDatabaseMeta{
-			Name: table.Database,
-			SchemaFile: mydump2.FileInfo{
-				TableName: filter.Table{
-					Name: table.Database,
-				},
+	table := task.Table
+	dbMetas = append(dbMetas, &mydump2.MDDatabaseMeta{
+		Name: table.Database,
+		SchemaFile: mydump2.FileInfo{
+			TableName: filter.Table{
+				Name: table.Database,
 			},
-			Tables: []*mydump2.MDTableMeta{
-				{
-					DB:   table.Database,
-					Name: table.Name,
-					DataFiles: []mydump2.FileInfo{{
-						TableName: filter.Table{
-							Schema: table.Database,
-							Name:   table.Name,
-						},
-						FileMeta: mydump2.SourceFileMeta{
-							Path:        "middleware_pass.mcloud_middleware_env.000000000.csv",
-							Type:        mydump2.SourceTypeCSV,
-							Compression: mydump2.CompressionNone,
-							SortKey:     "000000000",
-							FileSize:    1129,
-						},
-					}},
-				},
+		},
+		Tables: []*mydump2.MDTableMeta{
+			{
+				DB:   table.Database,
+				Name: table.Name,
+				DataFiles: []mydump2.FileInfo{{
+					TableName: filter.Table{
+						Schema: table.Database,
+						Name:   table.Name,
+					},
+					FileMeta: mydump2.SourceFileMeta{
+						Path:        "middleware_pass.mcloud_middleware_env.000000000.csv",
+						Type:        mydump2.SourceTypeCSV,
+						Compression: mydump2.CompressionNone,
+						SortKey:     "000000000",
+						FileSize:    1129,
+					},
+				}},
 			},
-			Views: nil,
-		})
-	}
+		},
+		Views: nil,
+	})
 
 	stauts := &restore.LightningStatus{}
 
