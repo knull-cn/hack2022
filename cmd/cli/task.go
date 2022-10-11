@@ -3,22 +3,23 @@ package main
 import (
 	"context"
 	"fmt"
-	"gitee.com/knullhhf/hack22/logger"
-	mnet "gitee.com/knullhhf/hack22/net"
-	"gitee.com/knullhhf/hack22/net/msg"
+	"github.com/knullhhf/hack22/logger"
+	mnet "github.com/knullhhf/hack22/net"
+	"github.com/knullhhf/hack22/net/msg"
+	"io"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 type taskService struct {
 	msg.UnimplementedTaskManagerServer
-	cli      *msg.ClientInfo
-	taskAddr string
-	tasks    map[string]*cliTask
-	wg       *sync.WaitGroup
-	ctx      context.Context
+	cli          *msg.ClientInfo
+	taskAddr     string
+	tasks        map[string]*cliTask
+	writeSignals map[string]*sync.WaitGroup
+	ctx          context.Context
 }
 
 // func (ts *taskService) mustEmbedUnimplementedTaskManagerServer() {
@@ -36,11 +37,12 @@ func (ts *taskService) NewTask(ctx context.Context, in *msg.ReqNewTask) (*msg.Re
 		return nil, fmt.Errorf("dial '%s' err:%s", in.GetTaskAddr(), err.Error())
 	}
 
-	k := mnet.SocketKey(in.Cli.Name, in.Task.TaskName, in.Task.TaskKey)
+	k := mnet.SocketKey(in.Cli.Name, in.Task.TaskKey)
 	_, err = tc.Write([]byte(k))
 	if err != nil {
 		return nil, fmt.Errorf("write err:%w", err)
 	}
+
 	logger.LogTrace("write key '%s'", k)
 	ct := cliTask{
 		name:  in.Task.TaskName,
@@ -50,8 +52,16 @@ func (ts *taskService) NewTask(ctx context.Context, in *msg.ReqNewTask) (*msg.Re
 	}
 	ts.tasks[ct.name] = &ct
 	//
-	ts.wg.Add(1)
+	ts.writeSignals[in.Task.TaskName] = &sync.WaitGroup{}
+	ts.writeSignals[in.Task.TaskName].Add(1)
 	go ts.DumpData(&ct)
+	return &msg.ReplyNewTask{Rc: mnet.DefaultOkReplay()}, nil
+}
+
+// StartTask start write data
+func (ts *taskService) StartTask(ctx context.Context, in *msg.ReqNewTask) (*msg.ReplyNewTask, error) {
+	logger.LogTraceJson("NewTask %s", in)
+	ts.writeSignals[in.Task.TaskName].Done()
 	return &msg.ReplyNewTask{Rc: mnet.DefaultOkReplay()}, nil
 }
 
@@ -68,16 +78,33 @@ func (ts *taskService) ReportState(ctx context.Context, in *msg.ReqReport) (*msg
 
 func (cc *taskService) DumpData(task *cliTask) {
 	logger.LogInfo("DumpData(%s) running....", task.name)
-	defer cc.wg.Done()
-	// select from source data;
-	// dump data to
+	defer cc.writeSignals[task.name].Wait()
 
-	// TODO : set state here. just for test this;
 	task.state = msg.TaskState_ts_Dumpling
 	var idx int64
-	for {
-		time.Sleep(time.Second)
-		task.progress = fmt.Sprintf("%d", atomic.AddInt64(&idx, 1))
-		task.con.Write([]byte(fmt.Sprintf("run - %d.\n", idx)))
+
+	task.progress = fmt.Sprintf("%d", atomic.AddInt64(&idx, 1))
+	file, err := os.Open("/Users/mikechengwei/Downloads/env_table/middleware_pass.mcloud_middleware_env.000000000.csv")
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
+	sendBuffer := make([]byte, 1024)
+	for {
+		n, err := file.Read(sendBuffer)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			logger.LogErr("dump data error:%v", err)
+			break
+		}
+		if n == 0 {
+			break
+		}
+		task.con.Write(sendBuffer[:n])
+	}
+	task.con.Close()
+	logger.LogInfo("write success")
+
 }

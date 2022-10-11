@@ -1,6 +1,7 @@
 package srv
 
 import (
+	task2 "github.com/knullhhf/hack22/task"
 	"testing"
 	"time"
 )
@@ -18,12 +19,14 @@ func TestRunning(t *testing.T) {
 		t.Log(e)
 
 	}
-
-	task := srvTask{
-		name:    "task-01",
-		taskKey: "1234",
+	task := task2.MigrateTask{
+		ClientName: cli,
+		Name:       "task-01",
+		Table: &task2.TableInfo{
+			Database: "middleware_pass", Name: "mcloud_middleware_env",
+		},
 	}
-	gcs.addTask(cli, task)
+	gcs.addTask(task)
 	//
 	time.Sleep(1000 * time.Second)
 }
