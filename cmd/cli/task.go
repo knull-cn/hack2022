@@ -19,6 +19,7 @@ type taskService struct {
 	taskAddr     string
 	tasks        map[string]*cliTask
 	writeSignals map[string]*sync.WaitGroup
+	wg           *sync.WaitGroup
 	ctx          context.Context
 }
 
