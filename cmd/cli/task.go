@@ -61,7 +61,7 @@ func (ts *taskService) NewTask(ctx context.Context, in *msg.ReqNewTask) (*msg.Re
 
 // StartTask start write data
 func (ts *taskService) StartTask(ctx context.Context, in *msg.ReqNewTask) (*msg.ReplyNewTask, error) {
-	logger.LogTraceJson("NewTask %s", in)
+	logger.LogTraceJson("StartTask %s", in)
 	ts.writeSignals[in.Task.TaskName].Done()
 	return &msg.ReplyNewTask{Rc: mnet.DefaultOkReplay()}, nil
 }
@@ -78,8 +78,8 @@ func (ts *taskService) ReportState(ctx context.Context, in *msg.ReqReport) (*msg
 }
 
 func (cc *taskService) DumpData(task *cliTask) {
-	logger.LogInfo("DumpData(%s) running....", task.name)
-	defer cc.writeSignals[task.name].Wait()
+	logger.LogInfo("DumpData(%s) waiting write signals....", task.name)
+	cc.writeSignals[task.name].Wait()
 
 	task.state = msg.TaskState_ts_Dumpling
 	var idx int64
@@ -105,7 +105,10 @@ func (cc *taskService) DumpData(task *cliTask) {
 		}
 		task.con.Write(sendBuffer[:n])
 	}
-	task.con.Close()
-	logger.LogInfo("write success")
+	err = task.con.Close()
+	if err != nil {
+		logger.LogErr("close connection error:%v", err)
+	}
+	logger.LogInfo("close connection success")
 
 }

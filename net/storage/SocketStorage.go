@@ -2,6 +2,8 @@ package storage
 
 import (
 	"context"
+	"github.com/knullhhf/hack22/logger"
+	"github.com/knullhhf/hack22/net/msg"
 	"github.com/pingcap/errors"
 	"net"
 
@@ -54,18 +56,40 @@ func (l *SocketStorage) Rename(ctx context.Context, oldFileName, newFileName str
 }
 
 type SocketStorageReader struct {
-	Connection net.Conn
+	Connection        net.Conn
+	TaskManagerClient msg.TaskManagerClient
+	TaskInfo          *msg.ReqNewTask
+	IsReadHeader      *bool
+	FirstDataRead     *bool
 }
 
-func (s SocketStorageReader) Read(p []byte) (n int, err error) {
+func (s *SocketStorageReader) Read(p []byte) (n int, err error) {
+	//if s.IsReadHeader==nil{
+	//
+	//	b := true
+	//	s.IsReadHeader = &b
+	//
+	//	return 0, nil
+	//}
+	ctx := context.TODO()
+	// start task write
+	if s.FirstDataRead == nil || !*s.FirstDataRead {
+		_, err = s.TaskManagerClient.StartTask(ctx, s.TaskInfo)
+		if err != nil {
+			logger.LogErr("start task error:%v", err)
+		}
+		b := true
+		s.FirstDataRead = &b
+	}
+
 	n, err = s.Connection.Read(p)
 	return n, err
 }
 
-func (s SocketStorageReader) Close() error {
+func (s *SocketStorageReader) Close() error {
 	return s.Connection.Close()
 }
 
-func (s SocketStorageReader) Seek(offset int64, whence int) (int64, error) {
+func (s *SocketStorageReader) Seek(offset int64, whence int) (int64, error) {
 	return 0, nil
 }

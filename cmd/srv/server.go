@@ -10,7 +10,6 @@ import (
 	"github.com/knullhhf/hack22/net/msg"
 	"github.com/knullhhf/hack22/net/storage"
 	"github.com/knullhhf/hack22/task"
-	"github.com/pingcap/tidb/br/pkg/lightning/config"
 	"github.com/pingcap/tidb/br/pkg/lightning/glue"
 	"github.com/pingcap/tidb/br/pkg/lightning/log"
 	mydump2 "github.com/pingcap/tidb/br/pkg/lightning/mydump"
@@ -20,7 +19,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"io"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -83,18 +81,21 @@ func (cs *Server) waitTaskCli(lis net.Listener) {
 		// change state to task;
 		ct.RunningTasks[metas[2]] = ct.PendingTasks[metas[2]]
 		ct.RunningTasks[metas[2]].DumpState = msg.TaskState_ts_Create
-		ct.RunningTasks[metas[2]].LightState = msg.TaskState_ts_Create
-		ct.PendingTasks[metas[2]] = nil
+		//ct.RunningTasks[metas[2]].LightState = msg.TaskState_ts_Create
+		delete(ct.PendingTasks, metas[2])
+
+		ct.RunningTasks[metas[2]].WriterSource.Reader.Connection = con
 		// done;
 		cs.wg.Add(1)
-		go cs.task4lightning(ct.RunningTasks[metas[2]], con)
+		go cs.task4lightning(ct.RunningTasks[metas[2]])
 	}
 }
 
-func (cs *Server) task4lightning(task *task.MigrateTask, con net.Conn) {
+func (cs *Server) task4lightning(task *task.MigrateTask) {
 	defer cs.wg.Done()
 	dbMetas := []*mydump2.MDDatabaseMeta{}
 	table := task.Table
+	//generate db metadata
 	dbMetas = append(dbMetas, &mydump2.MDDatabaseMeta{
 		Name: table.Database,
 		SchemaFile: mydump2.FileInfo{
@@ -123,56 +124,33 @@ func (cs *Server) task4lightning(task *task.MigrateTask, con net.Conn) {
 		},
 		Views: nil,
 	})
-
-	stauts := &restore.LightningStatus{}
-
-	globalCfg := config.Must(config.LoadGlobalConfig([]string{"-config", "/Users/mikechengwei/Downloads/lightning/tidb-lightning.toml"}, nil))
-	logToFile := globalCfg.App.File != "" && globalCfg.App.File != "-"
-	if logToFile {
-		fmt.Fprintf(os.Stdout, "Verbose debug logs will be written to %s\n\n", globalCfg.App.Config.File)
-	}
 	ctx := context.TODO()
-	cfg := config.NewConfig()
-	cfg.Adjust(ctx)
-	if err := cfg.LoadFromGlobal(globalCfg); err != nil {
-		log.L().Error("load config error")
-	}
-
-	db, err := restore.DBFromConfig(ctx, cfg.TiDB)
+	db, err := restore.DBFromConfig(ctx, task.Config.TiDB)
 	if err != nil {
 		log.L().Error("DB ERROR")
 		return
 	}
-	g := glue.NewExternalTiDBGlue(db, cfg.TiDB.SQLMode)
+	g := glue.NewExternalTiDBGlue(db, task.Config.TiDB.SQLMode)
 
-	cfg.Checkpoint = config.Checkpoint{
-		Schema: "tidb_lightning_checkpoint",
-		DSN:    "/tmp/tidb_lightning_checkpoint.pb",
-		Driver: "file",
-		Enable: true,
-	}
-	cfg.App.TableConcurrency = 1
-	cfg.TikvImporter.RangeConcurrency = 16
-	cfg.App.IndexConcurrency = 2
 	param := &restore.ControllerParam{
 		DBMetas:           dbMetas,
-		Status:            stauts,
-		DumpFileStorage:   &storage.SocketStorage{Reader: &storage.SocketStorageReader{Connection: con}},
+		Status:            &restore.LightningStatus{},
+		DumpFileStorage:   task.WriterSource,
 		OwnExtStorage:     false,
 		Glue:              g,
 		CheckpointStorage: nil,
 		CheckpointName:    "",
 	}
-
-	procedure, err := restore.NewRestoreController(ctx, cfg, param)
+	procedure, err := restore.NewRestoreController(ctx, task.Config, param)
 	if err != nil {
 		log.L().Error("restore failed", log.ShortError(err))
 		return
 	}
 	defer procedure.Close()
-
 	err = procedure.Run(ctx)
-
+	if err != nil {
+		LogErr("migrate task error:%v", err)
+	}
 }
 
 func (cs *Server) reportLoop() {
@@ -188,31 +166,40 @@ func (cs *Server) reportLoop() {
 	cs.wg.Done()
 }
 
-func (cs *Server) addTask(task task.MigrateTask) error {
+func (cs *Server) addTask(task *task.MigrateTask) error {
 	cli, ok := cs.writerClients[task.ClientName]
 	if !ok {
 		//
 		return fmt.Errorf("%s not found", task.ClientName)
 	}
-	_, ok = cli.PendingTasks[task.Name]
+	_, ok = cli.PendingTasks[task.TaskKey]
 	if ok {
 		LogInfo("have added the task(%s) before", task.Name)
 		return nil
 	}
 
-	_, ok = cli.RunningTasks[task.Name]
+	_, ok = cli.RunningTasks[task.TaskKey]
 	if ok {
 		LogInfo("the task(%s) is running", task.Name)
 		return nil
 	}
 
-	_, ok = cli.FinishedTasks[task.Name]
+	_, ok = cli.FinishedTasks[task.TaskKey]
 	if ok {
 		LogInfo("the task(%s) is finished", task.Name)
 		return nil
 	}
-	cli.PendingTasks[task.Name] = &task
-
+	cli.PendingTasks[task.Name] = task
+	task.WriterSource = &storage.SocketStorage{Reader: &storage.SocketStorageReader{TaskManagerClient: cli.TaskManagerClient, TaskInfo: &msg.ReqNewTask{
+		Cli: cli.Client,
+		Task: &msg.TaskInfo{
+			TaskName: task.Name,
+			TaskKey:  task.TaskKey,
+			Db:       task.Table.Database,
+			Tbl:      task.Table.Name,
+		},
+		TaskAddr: cs.taskAddr,
+	}}}
 	return nil
 }
 
@@ -221,7 +208,8 @@ func (cs *Server) handle() {
 		for _, writer := range cs.writerClients {
 			for _, task := range writer.PendingTasks {
 				if task.DumpState != msg.TaskState_ts_Create {
-					cs.newTask(&writer.Client, msg.TaskInfo{
+					task.LightState = msg.TaskState_ts_Create
+					cs.newTask(writer.Client, &msg.TaskInfo{
 						TaskName: task.Name,
 						TaskKey:  task.TaskKey,
 						Db:       task.Table.Database,
@@ -256,7 +244,7 @@ func (cs *Server) Register(ctx context.Context, in *msg.ReqRegister) (*msg.Reply
 	//
 	cs.cliMtx.Lock()
 	cs.writerClients[in.Cli.Name] = &cli.WriterClient{
-		Client:            *client,
+		Client:            client,
 		TaskManagerClient: msg.NewTaskManagerClient(gc),
 		PendingTasks:      map[string]*task.MigrateTask{},
 		FinishedTasks:     map[string]*task.MigrateTask{},
@@ -267,7 +255,7 @@ func (cs *Server) Register(ctx context.Context, in *msg.ReqRegister) (*msg.Reply
 	return &msg.ReplyRegister{Rc: mnet.DefaultOkReplay()}, nil
 }
 
-func (cs *Server) newTask(cli *msg.ClientInfo, t msg.TaskInfo) {
+func (cs *Server) newTask(cli *msg.ClientInfo, t *msg.TaskInfo) {
 	obj, err := cs.findCli(cli.GetName(), cli.GetKey())
 	if err != nil {
 		err := fmt.Errorf("findCli(%s) err:%w", cli.GetName(), err)
@@ -276,7 +264,7 @@ func (cs *Server) newTask(cli *msg.ClientInfo, t msg.TaskInfo) {
 	}
 	r := msg.ReqNewTask{
 		Cli:      cli,
-		Task:     &t,
+		Task:     t,
 		TaskAddr: cs.taskAddr,
 	}
 	reply, err := obj.TaskManagerClient.NewTask(cs.ctx, &r)
@@ -289,7 +277,7 @@ func (cs *Server) newTask(cli *msg.ClientInfo, t msg.TaskInfo) {
 	LogInfo("newTask (%s-%s) to init finish.", cli.GetName(), t.GetTaskName())
 }
 
-func (cs *Server) startTask(cli *msg.ClientInfo, t msg.TaskInfo) {
+func (cs *Server) startTask(cli *msg.ClientInfo, t *msg.TaskInfo) {
 	obj, err := cs.findCli(cli.GetName(), cli.GetKey())
 	if err != nil {
 		err := fmt.Errorf("findCli(%s) err:%w", cli.GetName(), err)
@@ -298,7 +286,7 @@ func (cs *Server) startTask(cli *msg.ClientInfo, t msg.TaskInfo) {
 	}
 	r := msg.ReqNewTask{
 		Cli:      cli,
-		Task:     &t,
+		Task:     t,
 		TaskAddr: cs.taskAddr,
 	}
 	reply, err := obj.TaskManagerClient.NewTask(cs.ctx, &r)
@@ -324,7 +312,7 @@ func (cs *Server) ReportState() {
 func (cs *Server) reportCliTasks(c *cli.WriterClient, tasks map[string]*task.MigrateTask) {
 	for _, t := range tasks {
 		reply, err := c.TaskManagerClient.ReportState(cs.ctx, &msg.ReqReport{
-			Cli: &c.Client,
+			Cli: c.Client,
 			Task: &msg.TaskInfo{
 				TaskName: t.Name,
 				TaskKey:  t.TaskKey,

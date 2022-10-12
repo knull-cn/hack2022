@@ -66,7 +66,7 @@ func (RespCode) EnumDescriptor() ([]byte, []int) {
 type TaskState int32
 
 const (
-	TaskState_ts_Create    TaskState = 0
+	TaskState_ts_Create    TaskState = 2
 	TaskState_ts_Dumpling  TaskState = 1
 	TaskState_ts_Exception TaskState = 16
 	TaskState_ts_Finish    TaskState = 32

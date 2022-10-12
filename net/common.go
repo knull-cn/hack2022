@@ -1,7 +1,6 @@
 package net
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"github.com/knullhhf/hack22/net/msg"
 )
@@ -14,8 +13,8 @@ func DefaultOkReplay() *msg.ReplyBase {
 }
 
 func SocketKey(clientName, task string) string {
-	h := sha256.New()
-	h.Write([]byte(fmt.Sprintf("task:%s:%s", clientName, task)))
-	v := h.Sum(nil)
-	return fmt.Sprintf("%x", v)
+	//h := sha256.New()
+	//h.Write([]byte(fmt.Sprintf("task:%s:%s", clientName, task)))
+	//v := h.Sum(nil)
+	return fmt.Sprintf("task:%s:%s", clientName, task)
 }

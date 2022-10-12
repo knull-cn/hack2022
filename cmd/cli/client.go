@@ -38,6 +38,7 @@ func (cc *CtlCli) init4Task(taskAddr string) {
 	cc.taskSrv.ctx = cc.ctx
 	cc.taskSrv.wg = &cc.wg
 	cc.taskSrv.tasks = map[string]*cliTask{}
+	cc.taskSrv.writeSignals = map[string]*sync.WaitGroup{}
 	gs := grpc.NewServer()
 	msg.RegisterTaskManagerServer(gs, &cc.taskSrv)
 	li, err := net.Listen("tcp", taskAddr)

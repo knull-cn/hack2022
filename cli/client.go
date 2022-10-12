@@ -6,7 +6,7 @@ import (
 )
 
 type WriterClient struct {
-	Client            msg.ClientInfo
+	Client            *msg.ClientInfo
 	AuthKey           string
 	TaskManagerClient msg.TaskManagerClient
 	PendingTasks      map[string]*task.MigrateTask
