@@ -12,10 +12,12 @@ import (
 
 type SocketStorage struct {
 	Reader *SocketStorageReader
+	Writer *SocketStorageWriter
 }
 
 func (l *SocketStorage) WriteFile(ctx context.Context, name string, data []byte) error {
 	panic("implement me")
+
 }
 
 func (l *SocketStorage) ReadFile(ctx context.Context, name string) ([]byte, error) {
@@ -48,11 +50,23 @@ func (l *SocketStorage) URI() string {
 }
 
 func (l *SocketStorage) Create(ctx context.Context, path string) (br.ExternalFileWriter, error) {
-	panic("implement me")
+	return l.Writer, nil
 }
 
 func (l *SocketStorage) Rename(ctx context.Context, oldFileName, newFileName string) error {
 	panic("implement me")
+}
+
+type SocketStorageWriter struct {
+	Connection net.Conn
+}
+
+func (u *SocketStorageWriter) Write(ctx context.Context, data []byte) (int, error) {
+	return 0, nil
+}
+
+func (u *SocketStorageWriter) Close(ctx context.Context) error {
+	return nil
 }
 
 type SocketStorageReader struct {
@@ -64,13 +78,13 @@ type SocketStorageReader struct {
 }
 
 func (s *SocketStorageReader) Read(p []byte) (n int, err error) {
-	if s.IsReadHeader == nil {
-
-		b := true
-		s.IsReadHeader = &b
-
-		return 0, nil
-	}
+	//if s.IsReadHeader == nil {
+	//
+	//	b := true
+	//	s.IsReadHeader = &b
+	//
+	//	return 0, nil
+	//}
 	ctx := context.TODO()
 	// start task write
 	if s.FirstDataRead == nil || !*s.FirstDataRead {

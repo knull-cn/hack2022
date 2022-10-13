@@ -141,7 +141,7 @@ require (
 	github.com/pingcap/goleveldb v0.0.0-20191226122134-f82aafb29989 // indirect
 	github.com/pingcap/sysutil v0.0.0-20220114020952-ea68d2dbf5b4 // indirect
 	github.com/rogpeppe/go-internal v1.6.1 // indirect
-	github.com/shurcooL/httpgzip v0.0.0-20190720172056-320755c1c1b0 // indirect
+	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spf13/cobra v1.5.0 // indirect
 	github.com/stathat/consistent v1.0.0 // indirect
 	github.com/tikv/pd/client v0.0.0-20220725055910-7187a7ab72db // indirect

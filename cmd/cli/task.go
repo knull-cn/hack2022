@@ -6,11 +6,12 @@ import (
 	"github.com/knullhhf/hack22/logger"
 	mnet "github.com/knullhhf/hack22/net"
 	"github.com/knullhhf/hack22/net/msg"
-	"io"
+	"github.com/knullhhf/hack22/net/storage"
+	"github.com/pingcap/tidb/dumpling/export"
+	"go.uber.org/zap"
 	"net"
 	"os"
 	"sync"
-	"sync/atomic"
 )
 
 type TaskServiceInterface interface {
@@ -53,7 +54,7 @@ func (ts *TaskService) NewTask(ctx context.Context, in *msg.ReqNewTask) (*msg.Re
 	//
 	ts.writeSignals[in.Task.Name] = &sync.WaitGroup{}
 	ts.writeSignals[in.Task.Name].Add(1)
-	go ts.DumpData(&ct)
+	go ts.DumpTableData(&ct)
 	return &msg.ReplyNewTask{Rc: mnet.DefaultOkReplay()}, nil
 }
 
@@ -75,38 +76,59 @@ func (ts *TaskService) ReportState(ctx context.Context, in *msg.ReqReport) (*msg
 	return &rr, nil
 }
 
-func (cc *TaskService) DumpData(task *cliTask) {
+func (cc *TaskService) DumpTableData(task *cliTask) {
 	logger.LogInfo("DumpData(%s) waiting write signals....", task.name)
 	cc.writeSignals[task.name].Wait()
+	conf := export.DefaultConfig()
 
-	task.state = msg.TaskState_ts_Dumpling
-	var idx int64
+	extStorage := &storage.SocketStorage{
+		Writer: &storage.SocketStorageWriter{
+			Connection: task.con,
+		},
+	}
+	conf.ExtStorage = extStorage
+	ctx := context.TODO()
+	dumper, err := export.NewDumper(ctx, nil)
+	if err != nil {
+		fmt.Printf("\ncreate dumper failed: %s\n", err.Error())
+		os.Exit(1)
+	}
+	err = dumper.Dump()
+	_ = dumper.Close()
+	if err != nil {
+		dumper.L().Error("dump failed error stack info", zap.Error(err))
+		fmt.Printf("\ndump failed: %s\n", err.Error())
+		os.Exit(1)
+	}
 
-	task.progress = fmt.Sprintf("%d", atomic.AddInt64(&idx, 1))
-	file, err := os.Open("/Users/mikechengwei/Downloads/env_table/middleware_pass.mcloud_middleware_env.000000000.csv")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	sendBuffer := make([]byte, 1024)
-	for {
-		n, err := file.Read(sendBuffer)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			logger.LogErr("dump data error:%v", err)
-			break
-		}
-		if n == 0 {
-			break
-		}
-		task.con.Write(sendBuffer[:n])
-	}
-	err = task.con.Close()
-	if err != nil {
-		logger.LogErr("close connection error:%v", err)
-	}
+	//task.state = msg.TaskState_ts_Dumpling
+	//var idx int64
+	//
+	//task.progress = fmt.Sprintf("%d", atomic.AddInt64(&idx, 1))
+	//file, err := os.Open("/Users/mikechengwei/Downloads/env_table/middleware_pass.mcloud_middleware_env.000000000.csv")
+	//if err != nil {
+	//	fmt.Println(err)
+	//	return
+	//}
+	//sendBuffer := make([]byte, 1024)
+	//for {
+	//	n, err := file.Read(sendBuffer)
+	//	if err == io.EOF {
+	//		break
+	//	}
+	//	if err != nil {
+	//		logger.LogErr("dump data error:%v", err)
+	//		break
+	//	}
+	//	if n == 0 {
+	//		break
+	//	}
+	//	task.con.Write(sendBuffer[:n])
+	//}
+	//err = task.con.Close()
+	//if err != nil {
+	//	logger.LogErr("close connection error:%v", err)
+	//}
 	logger.LogInfo("close connection success")
 
 }
