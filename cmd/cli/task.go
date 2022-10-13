@@ -13,32 +13,30 @@ import (
 	"sync/atomic"
 )
 
-type taskService struct {
+type TaskServiceInterface interface {
+	NewTask(ctx context.Context, in *msg.ReqNewTask) (*msg.ReplyNewTask, error)
+	StartTask(ctx context.Context, in *msg.ReqNewTask) (*msg.ReplyNewTask, error)
+	ReportState(ctx context.Context, in *msg.ReqReport) (*msg.ReplyReport, error)
+}
+
+type TaskService struct {
 	msg.UnimplementedTaskManagerServer
 	cli          *msg.ClientInfo
-	taskAddr     string
 	tasks        map[string]*cliTask
 	writeSignals map[string]*sync.WaitGroup
 	wg           *sync.WaitGroup
 	ctx          context.Context
 }
 
-// func (ts *taskService) mustEmbedUnimplementedTaskManagerServer() {
-// 	// TODO implement me
-// 	panic("implement me")
-// }
-
-func (ts *taskService) NewTask(ctx context.Context, in *msg.ReqNewTask) (*msg.ReplyNewTask, error) {
+func (ts *TaskService) NewTask(ctx context.Context, in *msg.ReqNewTask) (*msg.ReplyNewTask, error) {
 	logger.LogTraceJson("NewTask %s", in)
-	// TODO : cli check;
 
-	// task check.
-	tc, err := net.Dial("tcp", in.GetTaskAddr())
+	tc, err := net.Dial("tcp", in.GetServer().GetTaskAddress())
 	if err != nil {
-		return nil, fmt.Errorf("dial '%s' err:%s", in.GetTaskAddr(), err.Error())
+		return nil, fmt.Errorf("dial '%s' err:%s", in.GetCli().GetAddress(), err.Error())
 	}
 
-	k := mnet.SocketKey(in.Cli.Name, in.Task.TaskKey)
+	k := mnet.SocketKey(in.Cli.Name, in.Task.Key)
 	_, err = tc.Write([]byte(k))
 	if err != nil {
 		return nil, fmt.Errorf("write err:%w", err)
@@ -46,28 +44,28 @@ func (ts *taskService) NewTask(ctx context.Context, in *msg.ReqNewTask) (*msg.Re
 
 	logger.LogTrace("write key '%s'", k)
 	ct := cliTask{
-		name:  in.Task.TaskName,
+		name:  in.Task.Name,
 		con:   tc,
 		info:  *in.Task,
 		state: msg.TaskState_ts_Create,
 	}
 	ts.tasks[ct.name] = &ct
 	//
-	ts.writeSignals[in.Task.TaskName] = &sync.WaitGroup{}
-	ts.writeSignals[in.Task.TaskName].Add(1)
+	ts.writeSignals[in.Task.Name] = &sync.WaitGroup{}
+	ts.writeSignals[in.Task.Name].Add(1)
 	go ts.DumpData(&ct)
 	return &msg.ReplyNewTask{Rc: mnet.DefaultOkReplay()}, nil
 }
 
 // StartTask start write data
-func (ts *taskService) StartTask(ctx context.Context, in *msg.ReqNewTask) (*msg.ReplyNewTask, error) {
+func (ts *TaskService) StartTask(ctx context.Context, in *msg.ReqNewTask) (*msg.ReplyNewTask, error) {
 	logger.LogTraceJson("StartTask %s", in)
-	ts.writeSignals[in.Task.TaskName].Done()
+	ts.writeSignals[in.Task.Name].Done()
 	return &msg.ReplyNewTask{Rc: mnet.DefaultOkReplay()}, nil
 }
 
-func (ts *taskService) ReportState(ctx context.Context, in *msg.ReqReport) (*msg.ReplyReport, error) {
-	t := ts.tasks[in.GetTask().GetTaskName()]
+func (ts *TaskService) ReportState(ctx context.Context, in *msg.ReqReport) (*msg.ReplyReport, error) {
+	t := ts.tasks[in.GetTask().GetName()]
 
 	rr := msg.ReplyReport{
 		Rc:       mnet.DefaultOkReplay(),
@@ -77,7 +75,7 @@ func (ts *taskService) ReportState(ctx context.Context, in *msg.ReqReport) (*msg
 	return &rr, nil
 }
 
-func (cc *taskService) DumpData(task *cliTask) {
+func (cc *TaskService) DumpData(task *cliTask) {
 	logger.LogInfo("DumpData(%s) waiting write signals....", task.name)
 	cc.writeSignals[task.name].Wait()
 

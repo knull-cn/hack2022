@@ -1,4 +1,4 @@
-syntax="proto3";
+syntax = "proto3";
 package msg;
 
 option go_package = "../msg";
@@ -6,11 +6,16 @@ option go_package = "../msg";
 message ClientInfo {
   string name = 1;
   string key = 2;
+  string address = 3;
+}
+
+message ServerInfo {
+  string taskAddress = 1;
 }
 
 message  TaskInfo {
-  string taskName = 1;
-  string taskKey = 2;
+  string name = 1;
+  string key = 2;
   string db = 3;
   string tbl = 4;
 };
@@ -26,7 +31,6 @@ message  replyBase {
 
 message ReqRegister{
   ClientInfo cli = 1;
-  string taskAddr = 2;
 }
 
 message  ReplyRegister{
@@ -36,7 +40,7 @@ message  ReplyRegister{
 message ReqNewTask{
   ClientInfo cli = 1;
   TaskInfo task = 2;
-  string TaskAddr  = 3;
+  ServerInfo server = 3;
 }
 
 message  ReplyNewTask{
@@ -44,8 +48,9 @@ message  ReplyNewTask{
 }
 
 enum TaskState {
-  ts_Create = 0;
-  ts_Dumpling = 1;
+  ts_Init = 0;
+  ts_Create = 1;
+  ts_Dumpling = 2;
   ts_Exception = 0x10;
   ts_Finish = 0x20;
 };
@@ -58,5 +63,5 @@ message  ReqReport{
 message  ReplyReport{
   replyBase rc = 1;
   TaskState  state = 2;
-  string progress  = 3;
+  string progress = 3;
 }

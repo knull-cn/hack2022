@@ -16,7 +16,7 @@ func TestRunning(t *testing.T) {
 	cli := "dumpling-1"
 	for {
 		time.Sleep(time.Second)
-		_, e := gcs.findCli(cli, "123456")
+		_, e := LightningServer.findCli(cli, "123456")
 		if e == nil {
 
 			break
@@ -51,13 +51,13 @@ func TestRunning(t *testing.T) {
 	task := task2.MigrateTask{
 		ClientName: cli,
 		Name:       "task-01",
-		TaskKey:    "task-01",
+		Key:        "task-01",
 		Table: &task2.TableInfo{
 			Database: "middleware_pass", Name: "mcloud_middleware_env",
 		},
 		Config: cfg,
 	}
 	// create task
-	gcs.addTask(&task)
+	LightningServer.addTask(&task)
 	time.Sleep(1000 * time.Second)
 }

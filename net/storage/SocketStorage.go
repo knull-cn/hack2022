@@ -64,13 +64,13 @@ type SocketStorageReader struct {
 }
 
 func (s *SocketStorageReader) Read(p []byte) (n int, err error) {
-	//if s.IsReadHeader==nil{
-	//
-	//	b := true
-	//	s.IsReadHeader = &b
-	//
-	//	return 0, nil
-	//}
+	if s.IsReadHeader == nil {
+
+		b := true
+		s.IsReadHeader = &b
+
+		return 0, nil
+	}
 	ctx := context.TODO()
 	// start task write
 	if s.FirstDataRead == nil || !*s.FirstDataRead {

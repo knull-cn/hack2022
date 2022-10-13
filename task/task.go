@@ -9,7 +9,7 @@ import (
 type MigrateTask struct {
 	ClientName string
 	Name       string
-	TaskKey    string
+	Key        string
 
 	Table         *TableInfo
 	DumpState     msg.TaskState

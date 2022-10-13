@@ -172,19 +172,19 @@ func (cs *Server) addTask(task *task.MigrateTask) error {
 		//
 		return fmt.Errorf("%s not found", task.ClientName)
 	}
-	_, ok = cli.PendingTasks[task.TaskKey]
+	_, ok = cli.PendingTasks[task.Key]
 	if ok {
 		LogInfo("have added the task(%s) before", task.Name)
 		return nil
 	}
 
-	_, ok = cli.RunningTasks[task.TaskKey]
+	_, ok = cli.RunningTasks[task.Key]
 	if ok {
 		LogInfo("the task(%s) is running", task.Name)
 		return nil
 	}
 
-	_, ok = cli.FinishedTasks[task.TaskKey]
+	_, ok = cli.FinishedTasks[task.Key]
 	if ok {
 		LogInfo("the task(%s) is finished", task.Name)
 		return nil
@@ -193,12 +193,11 @@ func (cs *Server) addTask(task *task.MigrateTask) error {
 	task.WriterSource = &storage.SocketStorage{Reader: &storage.SocketStorageReader{TaskManagerClient: cli.TaskManagerClient, TaskInfo: &msg.ReqNewTask{
 		Cli: cli.Client,
 		Task: &msg.TaskInfo{
-			TaskName: task.Name,
-			TaskKey:  task.TaskKey,
-			Db:       task.Table.Database,
-			Tbl:      task.Table.Name,
+			Name: task.Name,
+			Key:  task.Key,
+			Db:   task.Table.Database,
+			Tbl:  task.Table.Name,
 		},
-		TaskAddr: cs.taskAddr,
 	}}}
 	return nil
 }
@@ -207,13 +206,13 @@ func (cs *Server) handle() {
 	for {
 		for _, writer := range cs.writerClients {
 			for _, task := range writer.PendingTasks {
-				if task.DumpState != msg.TaskState_ts_Create {
+				if task.LightState != msg.TaskState_ts_Create {
 					task.LightState = msg.TaskState_ts_Create
 					cs.newTask(writer.Client, &msg.TaskInfo{
-						TaskName: task.Name,
-						TaskKey:  task.TaskKey,
-						Db:       task.Table.Database,
-						Tbl:      task.Table.Name,
+						Name: task.Name,
+						Key:  task.Key,
+						Db:   task.Table.Database,
+						Tbl:  task.Table.Name,
 					})
 				}
 			}
@@ -235,9 +234,9 @@ func (cs *Server) Register(ctx context.Context, in *msg.ReqRegister) (*msg.Reply
 	//
 	LogTraceJson("Register %s", in)
 	// init taskManager;
-	gc, err := grpc.DialContext(cs.ctx, in.GetTaskAddr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	gc, err := grpc.DialContext(cs.ctx, in.Cli.GetAddress(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		err := fmt.Errorf("dial context task addr(%s) err:%w", in.GetTaskAddr(), err)
+		err := fmt.Errorf("dial context task addr(%s) err:%w", in.Cli.GetAddress(), err)
 		LogErr(err.Error())
 		return nil, err
 	}
@@ -263,18 +262,20 @@ func (cs *Server) newTask(cli *msg.ClientInfo, t *msg.TaskInfo) {
 		return
 	}
 	r := msg.ReqNewTask{
-		Cli:      cli,
-		Task:     t,
-		TaskAddr: cs.taskAddr,
+		Cli:  cli,
+		Task: t,
+		Server: &msg.ServerInfo{
+			TaskAddress: cs.taskAddr,
+		},
 	}
 	reply, err := obj.TaskManagerClient.NewTask(cs.ctx, &r)
 	if err != nil {
-		err := fmt.Errorf("NewTask(%s) by cli(%s) err:%w", t.TaskName, cli.GetName(), err)
+		err := fmt.Errorf("NewTask(%s) by cli(%s) err:%w", t.Name, cli.GetName(), err)
 		LogErr(err.Error())
 		return
 	}
 	_ = reply
-	LogInfo("newTask (%s-%s) to init finish.", cli.GetName(), t.GetTaskName())
+	LogInfo("newTask (%s-%s) to init finish.", cli.GetName(), t.GetName())
 }
 
 func (cs *Server) startTask(cli *msg.ClientInfo, t *msg.TaskInfo) {
@@ -285,18 +286,17 @@ func (cs *Server) startTask(cli *msg.ClientInfo, t *msg.TaskInfo) {
 		return
 	}
 	r := msg.ReqNewTask{
-		Cli:      cli,
-		Task:     t,
-		TaskAddr: cs.taskAddr,
+		Cli:  cli,
+		Task: t,
 	}
 	reply, err := obj.TaskManagerClient.NewTask(cs.ctx, &r)
 	if err != nil {
-		err := fmt.Errorf("NewTask(%s) by cli(%s) err:%w", t.TaskName, cli.GetName(), err)
+		err := fmt.Errorf("NewTask(%s) by cli(%s) err:%w", t.Name, cli.GetName(), err)
 		LogErr(err.Error())
 		return
 	}
 	_ = reply
-	LogInfo("newTask (%s-%s) to init finish.", cli.GetName(), t.GetTaskName())
+	LogInfo("newTask (%s-%s) to init finish.", cli.GetName(), t.GetName())
 }
 
 func (cs *Server) ReportState() {
@@ -314,8 +314,8 @@ func (cs *Server) reportCliTasks(c *cli.WriterClient, tasks map[string]*task.Mig
 		reply, err := c.TaskManagerClient.ReportState(cs.ctx, &msg.ReqReport{
 			Cli: c.Client,
 			Task: &msg.TaskInfo{
-				TaskName: t.Name,
-				TaskKey:  t.TaskKey,
+				Name: t.Name,
+				Key:  t.Key,
 			},
 		})
 		if err != nil {
@@ -326,46 +326,46 @@ func (cs *Server) reportCliTasks(c *cli.WriterClient, tasks map[string]*task.Mig
 	}
 }
 
-func (cs *Server) Init(taskAddr string, sec int) {
+func (cs *Server) Init(taskAddress string, sec int) {
 
-	taskListner, err := net.Listen("tcp", taskAddr)
+	taskListener, err := net.Listen("tcp", taskAddress)
 	if err != nil {
-		LogFatal("listen on '%s' failed", taskAddr)
+		LogFatal("listen on '%s' failed", taskAddress)
 	}
 	cs.ctx, cs.cancel = context.WithCancel(context.TODO())
 	cs.reportInterval = sec
-	cs.taskAddr = taskAddr
+	cs.taskAddr = taskAddress
 	cs.writerClients = map[string]*cli.WriterClient{}
 
 	cs.wg.Add(1)
-	go cs.waitTaskCli(taskListner)
+	go cs.waitTaskCli(taskListener)
 	go cs.handle()
 	cs.wg.Add(1)
 	go cs.reportLoop()
 }
 
 var (
-	gcs = &Server{}
+	LightningServer = &Server{}
 	//
-	saddr    = flag.String("l", ":9876", "address of listener")
-	taskAddr = flag.String("t", ":9877", "listener of task ")
-	report   = flag.Int("r", 1, "report of interval second")
+	address     = flag.String("l", ":9876", "address of listener")
+	taskAddress = flag.String("t", ":9877", "listener of task ")
+	report      = flag.Int("r", 1, "report of interval second")
 )
 
 func RunServer() {
 	flag.Parse()
-	gcs.Init(*taskAddr, 1)
-	runGrpcServer(*saddr)
+	LightningServer.Init(*taskAddress, 1)
+	runGrpcServer(*address)
 }
 
 func runGrpcServer(addr string) {
-	lis, err := net.Listen("tcp", addr)
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		LogFatal("listen err:%s", err.Error())
 	}
 	server := grpc.NewServer()
-	msg.RegisterToolsManagerServer(server, gcs)
-	if err := server.Serve(lis); err != nil {
+	msg.RegisterToolsManagerServer(server, LightningServer)
+	if err := server.Serve(listener); err != nil {
 		LogFatal("failed to serve: %v", err)
 	}
 }

@@ -13,16 +13,14 @@ import (
 	"time"
 )
 
-type CtlCli struct {
-	addr    string
-	info    msg.ClientInfo
-	cli     msg.ToolsManagerClient
-	taskSrv taskService
+type Client struct {
+	serverAddress  string
+	info           msg.ClientInfo
+	serverGrpcTool msg.ToolsManagerClient
+	taskService    TaskService
 
 	ctx    context.Context
 	cancel context.CancelFunc
-	//
-	wg sync.WaitGroup
 }
 
 type cliTask struct {
@@ -33,54 +31,47 @@ type cliTask struct {
 	progress string
 }
 
-func (cc *CtlCli) init4Task(taskAddr string) {
-	cc.taskSrv.taskAddr = taskAddr
-	cc.taskSrv.ctx = cc.ctx
-	cc.taskSrv.wg = &cc.wg
-	cc.taskSrv.tasks = map[string]*cliTask{}
-	cc.taskSrv.writeSignals = map[string]*sync.WaitGroup{}
-	gs := grpc.NewServer()
-	msg.RegisterTaskManagerServer(gs, &cc.taskSrv)
-	li, err := net.Listen("tcp", taskAddr)
+func (cc *Client) startTaskListen() {
+	cc.taskService.ctx = cc.ctx
+	cc.taskService.tasks = map[string]*cliTask{}
+	cc.taskService.writeSignals = map[string]*sync.WaitGroup{}
+	clientGrpcServer := grpc.NewServer()
+	msg.RegisterTaskManagerServer(clientGrpcServer, &cc.taskService)
+	controlListener, err := net.Listen("tcp", cc.info.GetAddress())
 	if err != nil {
-		LogFatal("listen taskAddr(%s) err:%s", taskAddr, err.Error())
+		LogFatal("listen taskAddr(%s) err:%s", cc.info.GetAddress(), err.Error())
 	}
-	gs.Serve(li)
+	err = clientGrpcServer.Serve(controlListener)
+	if err != nil {
+		LogErr("start client task listen err:%v", err)
+	}
 }
 
-func (cc *CtlCli) Init(addr, taskAddr, name, key string) error {
-	//
+func (cc *Client) Init(serverAddress, clientAddress, name, key string) error {
 	cc.ctx, cc.cancel = context.WithCancel(context.TODO())
-	//
-	cc.wg.Add(1)
-	go func() {
-		cc.init4Task(taskAddr)
-		cc.wg.Done()
-	}()
-	//
 	ctx, cancel := context.WithTimeout(cc.ctx, time.Second*5)
-	cn, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cn, err := grpc.DialContext(ctx, serverAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		cancel()
 		return fmt.Errorf("DialContext err:%s", err.Error())
 	}
-	cl := msg.NewToolsManagerClient(cn)
+	serverGrpcTool := msg.NewToolsManagerClient(cn)
 	cc.info = msg.ClientInfo{
-		Name: name,
-		Key:  key,
+		Name:    name,
+		Key:     key,
+		Address: clientAddress,
 	}
-	cc.cli = cl
-	cc.addr = addr
+	cc.serverGrpcTool = serverGrpcTool
+	cc.serverAddress = serverAddress
 	return nil
 }
 
-func (cc *CtlCli) Register() error {
-	replay, err := cc.cli.Register(cc.ctx, &msg.ReqRegister{
-		Cli:      &cc.info,
-		TaskAddr: cc.taskSrv.taskAddr,
+func (cc *Client) Register() error {
+	replay, err := cc.serverGrpcTool.Register(cc.ctx, &msg.ReqRegister{
+		Cli: &cc.info,
 	})
 	if err != nil {
-		LogInfo("regist net err:%s", err.Error())
+		LogInfo("register net err:%s", err.Error())
 		return err
 	}
 	if replay.Rc.Rc == msg.RespCode_rc_OK {
@@ -92,26 +83,33 @@ func (cc *CtlCli) Register() error {
 }
 
 var (
-	gc = &CtlCli{}
-	//
-	saddr = flag.String("s", ":9876", "address of server")
-	key   = flag.String("k", "123456", "key of this running")
+	client        = &Client{}
+	serverAddress = flag.String("s", ":9876", "address of server")
+	key           = flag.String("k", "123456", "key of this running")
 
-	taskAddr = flag.String("t", ":9899", "listener for wait task")
+	clientAddress = flag.String("t", ":9899", "listener for wait task")
 )
 
 func RunClient() {
 	flag.Parse()
-	err := gc.Init(*saddr, *taskAddr, "dumpling-1", "123456")
+	err := client.Init(*serverAddress, *clientAddress, "dumpling-1", "123456")
 	if err != nil {
 		LogFatal("Init err:%s", err.Error())
 	}
-	err = gc.Register()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		client.startTaskListen()
+		wg.Done()
+	}()
+	err = client.Register()
 	if err != nil {
 		LogFatal("Regist err:%s", err.Error())
 	}
 
-	gc.wg.Wait()
+	wg.Add(1)
+	wg.Wait()
+
 }
 
 func main() {
