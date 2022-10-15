@@ -117,7 +117,7 @@ func (cs *Server) task4lightning(task *task.MigrateTask) {
 						Type:        mydump2.SourceTypeCSV,
 						Compression: mydump2.CompressionNone,
 						SortKey:     "000000000",
-						FileSize:    1129,
+						FileSize:    1024 * 1024 * 1024, //need to justify
 					},
 				}},
 			},

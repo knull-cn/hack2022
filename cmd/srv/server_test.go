@@ -48,6 +48,7 @@ func TestRunning(t *testing.T) {
 	cfg.Mydumper.CSV.Header = true
 	cfg.Mydumper.CSV.Header = true
 	cfg.App.CheckRequirements = false
+
 	task := task2.MigrateTask{
 		ClientName: cli,
 		Name:       "task-01",
@@ -59,5 +60,5 @@ func TestRunning(t *testing.T) {
 	}
 	// create task
 	LightningServer.addTask(&task)
-	time.Sleep(1000 * time.Second)
+	time.Sleep(1000000 * time.Second)
 }

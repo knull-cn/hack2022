@@ -6,6 +6,7 @@ import (
 	"github.com/knullhhf/hack22/net/msg"
 	"github.com/pingcap/errors"
 	"net"
+	"strings"
 
 	br "github.com/pingcap/tidb/br/pkg/storage"
 )
@@ -50,6 +51,10 @@ func (l *SocketStorage) URI() string {
 }
 
 func (l *SocketStorage) Create(ctx context.Context, path string) (br.ExternalFileWriter, error) {
+	if strings.Contains(path, "metadata") {
+		b := true
+		l.Writer.NotTransferData = &b
+	}
 	return l.Writer, nil
 }
 
@@ -58,15 +63,20 @@ func (l *SocketStorage) Rename(ctx context.Context, oldFileName, newFileName str
 }
 
 type SocketStorageWriter struct {
-	Connection net.Conn
+	Connection      net.Conn
+	NotTransferData *bool
 }
 
 func (u *SocketStorageWriter) Write(ctx context.Context, data []byte) (int, error) {
-	return 0, nil
+	if (u.NotTransferData != nil) && *u.NotTransferData {
+		return 0, nil
+	}
+	return u.Connection.Write(data)
 }
 
 func (u *SocketStorageWriter) Close(ctx context.Context) error {
 	return nil
+	//return u.Connection.Close()
 }
 
 type SocketStorageReader struct {
@@ -101,7 +111,8 @@ func (s *SocketStorageReader) Read(p []byte) (n int, err error) {
 }
 
 func (s *SocketStorageReader) Close() error {
-	return s.Connection.Close()
+	//return s.Connection.Close()
+	return nil
 }
 
 func (s *SocketStorageReader) Seek(offset int64, whence int) (int64, error) {

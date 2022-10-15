@@ -31,7 +31,7 @@ type cliTask struct {
 	progress string
 }
 
-func (cc *Client) startTaskListen() {
+func (cc *Client) startTaskListen(wg *sync.WaitGroup) {
 	cc.taskService.ctx = cc.ctx
 	cc.taskService.tasks = map[string]*cliTask{}
 	cc.taskService.writeSignals = map[string]*sync.WaitGroup{}
@@ -41,6 +41,7 @@ func (cc *Client) startTaskListen() {
 	if err != nil {
 		LogFatal("listen taskAddr(%s) err:%s", cc.info.GetAddress(), err.Error())
 	}
+	wg.Done()
 	err = clientGrpcServer.Serve(controlListener)
 	if err != nil {
 		LogErr("start client task listen err:%v", err)
@@ -99,9 +100,9 @@ func RunClient() {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		client.startTaskListen()
-		wg.Done()
+		client.startTaskListen(&wg)
 	}()
+	wg.Wait()
 	err = client.Register()
 	if err != nil {
 		LogFatal("Regist err:%s", err.Error())
