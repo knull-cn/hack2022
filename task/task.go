@@ -11,7 +11,8 @@ type MigrateTask struct {
 	Name       string
 	Key        string
 
-	Table         *TableInfo
+	Source        *TableInfo
+	Target        *TableInfo
 	DumpState     msg.TaskState
 	DumpProgress  string
 	LightState    msg.TaskState // TODO :for lightning state;
@@ -22,6 +23,10 @@ type MigrateTask struct {
 }
 
 type TableInfo struct {
+	Host     string
+	Port     int32
+	Username string
+	Password string
 	Database string
 	Name     string
 }

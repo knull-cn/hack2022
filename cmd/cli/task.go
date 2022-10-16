@@ -86,11 +86,11 @@ func (cc *TaskService) DumpTableData(task *cliTask) {
 			Connection: task.con,
 		},
 	}
-	conf.User = "root"
-	conf.Password = "12345678"
-	conf.Port = 3306
-	conf.Host = "127.0.0.1"
-	conf.SQL = "select * from `middleware_pass`.`mcloud_middleware_env`"
+	conf.User = task.info.Source.Username
+	conf.Password = task.info.Source.Password
+	conf.Port = int(task.info.Source.Port)
+	conf.Host = task.info.Source.Host
+	conf.SQL = fmt.Sprintf("select * from `%s`.`%s`", task.info.Source.Db, task.info.Source.Tbl)
 	conf.FileType = "csv"
 	conf.ExtStorage = extStorage
 	conf.CsvSeparator = ","

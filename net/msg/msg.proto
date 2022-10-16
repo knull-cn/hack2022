@@ -16,9 +16,18 @@ message ServerInfo {
 message  TaskInfo {
   string name = 1;
   string key = 2;
-  string db = 3;
-  string tbl = 4;
+  TableInfo source = 3;
+  TableInfo target = 4;
 };
+
+message TableInfo {
+  string host = 1;
+  int32 port = 2;
+  string username = 3;
+  string password = 4;
+  string db = 5;
+  string tbl = 6;
+}
 
 enum RespCode{
   rc_OK = 0;

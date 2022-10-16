@@ -53,12 +53,38 @@ func TestRunning(t *testing.T) {
 		ClientName: cli,
 		Name:       "task-01",
 		Key:        "task-01",
-		Table: &task2.TableInfo{
+		Source: &task2.TableInfo{
+			Host:     "127.0.0.1",
+			Port:     3306,
+			Username: "root",
+			Password: "12345678",
+			Database: "middleware_pass", Name: "mcloud_middleware_env",
+		},
+		Target: &task2.TableInfo{
 			Database: "middleware_pass", Name: "mcloud_middleware_env",
 		},
 		Config: cfg,
 	}
+
+	task2 := task2.MigrateTask{
+		ClientName: cli,
+		Name:       "task-02",
+		Key:        "task-02",
+		Source: &task2.TableInfo{
+			Host:     "127.0.0.1",
+			Port:     3306,
+			Username: "root",
+			Password: "12345678",
+			Database: "middleware_pass", Name: "mcloud_middleware_control_info",
+		},
+		Target: &task2.TableInfo{
+			Database: "middleware_pass", Name: "mcloud_middleware_control_info",
+		},
+		Config: cfg,
+	}
+
 	// create task
 	LightningServer.addTask(&task)
+	LightningServer.addTask(&task2)
 	time.Sleep(1000000 * time.Second)
 }

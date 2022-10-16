@@ -94,7 +94,7 @@ func (cs *Server) waitTaskCli(lis net.Listener) {
 func (cs *Server) task4lightning(task *task.MigrateTask) {
 	defer cs.wg.Done()
 	dbMetas := []*mydump2.MDDatabaseMeta{}
-	table := task.Table
+	table := task.Target
 	//generate db metadata
 	dbMetas = append(dbMetas, &mydump2.MDDatabaseMeta{
 		Name: table.Database,
@@ -195,8 +195,18 @@ func (cs *Server) addTask(task *task.MigrateTask) error {
 		Task: &msg.TaskInfo{
 			Name: task.Name,
 			Key:  task.Key,
-			Db:   task.Table.Database,
-			Tbl:  task.Table.Name,
+			Source: &msg.TableInfo{
+				Host:     task.Source.Host,
+				Port:     task.Source.Port,
+				Username: task.Source.Username,
+				Password: task.Source.Password,
+				Db:       task.Source.Database,
+				Tbl:      task.Source.Name,
+			},
+			Target: &msg.TableInfo{
+				Db:  task.Target.Database,
+				Tbl: task.Target.Name,
+			},
 		},
 	}}}
 	return nil
@@ -211,8 +221,18 @@ func (cs *Server) handle() {
 					cs.newTask(writer.Client, &msg.TaskInfo{
 						Name: task.Name,
 						Key:  task.Key,
-						Db:   task.Table.Database,
-						Tbl:  task.Table.Name,
+						Source: &msg.TableInfo{
+							Host:     task.Source.Host,
+							Port:     task.Source.Port,
+							Username: task.Source.Username,
+							Password: task.Source.Password,
+							Db:       task.Source.Database,
+							Tbl:      task.Source.Name,
+						},
+						Target: &msg.TableInfo{
+							Db:  task.Target.Database,
+							Tbl: task.Target.Name,
+						},
 					})
 				}
 			}
