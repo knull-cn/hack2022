@@ -1,8 +1,8 @@
 package task
 
 import (
-	"github.com/knullhhf/hack22/net/msg"
-	"github.com/knullhhf/hack22/net/storage"
+	msg2 "github.com/knullhhf/hack22/pkg/net/msg"
+	storage2 "github.com/knullhhf/hack22/pkg/net/storage"
 	"github.com/pingcap/tidb/br/pkg/lightning/config"
 )
 
@@ -13,13 +13,13 @@ type MigrateTask struct {
 
 	Source        *TableInfo
 	Target        *TableInfo
-	DumpState     msg.TaskState
+	DumpState     msg2.TaskState
 	DumpProgress  string
-	LightState    msg.TaskState // TODO :for lightning state;
+	LightState    msg2.TaskState // TODO :for lightning state;
 	LightProgress string
 
 	Config       *config.Config
-	WriterSource *storage.SocketStorage
+	WriterSource *storage2.SocketStorage
 }
 
 type TableInfo struct {

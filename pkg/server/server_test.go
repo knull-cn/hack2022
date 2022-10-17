@@ -1,9 +1,9 @@
-package srv
+package server
 
 import (
 	"context"
 	"fmt"
-	task2 "github.com/knullhhf/hack22/task"
+	task3 "github.com/knullhhf/hack22/pkg/models/task"
 	"github.com/pingcap/tidb/br/pkg/lightning/config"
 	"github.com/pingcap/tidb/br/pkg/lightning/log"
 	"os"
@@ -49,35 +49,35 @@ func TestRunning(t *testing.T) {
 	cfg.Mydumper.CSV.Header = true
 	cfg.App.CheckRequirements = false
 
-	task := task2.MigrateTask{
+	task := task3.MigrateTask{
 		ClientName: cli,
 		Name:       "task-01",
 		Key:        "task-01",
-		Source: &task2.TableInfo{
+		Source: &task3.TableInfo{
 			Host:     "127.0.0.1",
 			Port:     3306,
 			Username: "root",
 			Password: "12345678",
 			Database: "middleware_pass", Name: "mcloud_middleware_env",
 		},
-		Target: &task2.TableInfo{
+		Target: &task3.TableInfo{
 			Database: "middleware_pass", Name: "mcloud_middleware_env",
 		},
 		Config: cfg,
 	}
 
-	task2 := task2.MigrateTask{
+	task2 := task3.MigrateTask{
 		ClientName: cli,
 		Name:       "task-02",
 		Key:        "task-02",
-		Source: &task2.TableInfo{
+		Source: &task3.TableInfo{
 			Host:     "127.0.0.1",
 			Port:     3306,
 			Username: "root",
 			Password: "12345678",
 			Database: "middleware_pass", Name: "mcloud_middleware_control_info",
 		},
-		Target: &task2.TableInfo{
+		Target: &task3.TableInfo{
 			Database: "middleware_pass", Name: "mcloud_middleware_control_info",
 		},
 		Config: cfg,

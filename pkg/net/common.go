@@ -2,12 +2,12 @@ package net
 
 import (
 	"fmt"
-	"github.com/knullhhf/hack22/net/msg"
+	msg2 "github.com/knullhhf/hack22/pkg/net/msg"
 )
 
-func DefaultOkReplay() *msg.ReplyBase {
-	return &msg.ReplyBase{
-		Rc:      msg.RespCode_rc_OK,
+func DefaultOkReplay() *msg2.ReplyBase {
+	return &msg2.ReplyBase{
+		Rc:      msg2.RespCode_rc_OK,
 		RespMsg: "",
 	}
 }

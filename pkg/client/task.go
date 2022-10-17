@@ -1,12 +1,12 @@
-package main
+package client
 
 import (
 	"context"
 	"fmt"
 	"github.com/knullhhf/hack22/logger"
-	mnet "github.com/knullhhf/hack22/net"
-	"github.com/knullhhf/hack22/net/msg"
-	"github.com/knullhhf/hack22/net/storage"
+	net2 "github.com/knullhhf/hack22/pkg/net"
+	msg2 "github.com/knullhhf/hack22/pkg/net/msg"
+	storage2 "github.com/knullhhf/hack22/pkg/net/storage"
 	"github.com/pingcap/tidb/dumpling/export"
 	"go.uber.org/zap"
 	"net"
@@ -15,61 +15,61 @@ import (
 )
 
 type TaskServiceInterface interface {
-	NewTask(ctx context.Context, in *msg.ReqNewTask) (*msg.ReplyNewTask, error)
-	StartTask(ctx context.Context, in *msg.ReqNewTask) (*msg.ReplyNewTask, error)
-	ReportState(ctx context.Context, in *msg.ReqReport) (*msg.ReplyReport, error)
+	NewTask(ctx context.Context, in *msg2.ReqNewTask) (*msg2.ReplyNewTask, error)
+	StartTask(ctx context.Context, in *msg2.ReqNewTask) (*msg2.ReplyNewTask, error)
+	ReportState(ctx context.Context, in *msg2.ReqReport) (*msg2.ReplyReport, error)
 }
 
 type TaskService struct {
-	msg.UnimplementedTaskManagerServer
-	cli          *msg.ClientInfo
+	msg2.UnimplementedTaskManagerServer
+	cli          *msg2.ClientInfo
 	tasks        map[string]*cliTask
 	writeSignals map[string]*sync.WaitGroup
 	wg           *sync.WaitGroup
 	ctx          context.Context
 }
 
-func (ts *TaskService) NewTask(ctx context.Context, in *msg.ReqNewTask) (*msg.ReplyNewTask, error) {
-	logger.LogTraceJson("NewTask %s", in)
+func (ts *TaskService) NewTask(ctx context.Context, in *msg2.ReqNewTask) (*msg2.ReplyNewTask, error) {
+	logger.LogTraceJsonf("NewTask %s", in)
 
 	tc, err := net.Dial("tcp", in.GetServer().GetTaskAddress())
 	if err != nil {
 		return nil, fmt.Errorf("dial '%s' err:%s", in.GetCli().GetAddress(), err.Error())
 	}
 
-	k := mnet.SocketKey(in.Cli.Name, in.Task.Key)
+	k := net2.SocketKey(in.Cli.Name, in.Task.Key)
 	_, err = tc.Write([]byte(k))
 	if err != nil {
 		return nil, fmt.Errorf("write err:%w", err)
 	}
 
-	logger.LogTrace("write key '%s'", k)
+	logger.LogTracef("write key '%s'", k)
 	ct := cliTask{
 		name:  in.Task.Name,
 		con:   tc,
 		info:  *in.Task,
-		state: msg.TaskState_ts_Create,
+		state: msg2.TaskState_ts_Create,
 	}
 	ts.tasks[ct.name] = &ct
 	//
 	ts.writeSignals[in.Task.Name] = &sync.WaitGroup{}
 	ts.writeSignals[in.Task.Name].Add(1)
 	go ts.DumpTableData(&ct)
-	return &msg.ReplyNewTask{Rc: mnet.DefaultOkReplay()}, nil
+	return &msg2.ReplyNewTask{Rc: net2.DefaultOkReplay()}, nil
 }
 
 // StartTask start write data
-func (ts *TaskService) StartTask(ctx context.Context, in *msg.ReqNewTask) (*msg.ReplyNewTask, error) {
-	logger.LogTraceJson("StartTask %s", in)
+func (ts *TaskService) StartTask(ctx context.Context, in *msg2.ReqNewTask) (*msg2.ReplyNewTask, error) {
+	logger.LogTraceJsonf("StartTask %s", in)
 	ts.writeSignals[in.Task.Name].Done()
-	return &msg.ReplyNewTask{Rc: mnet.DefaultOkReplay()}, nil
+	return &msg2.ReplyNewTask{Rc: net2.DefaultOkReplay()}, nil
 }
 
-func (ts *TaskService) ReportState(ctx context.Context, in *msg.ReqReport) (*msg.ReplyReport, error) {
+func (ts *TaskService) ReportState(ctx context.Context, in *msg2.ReqReport) (*msg2.ReplyReport, error) {
 	t := ts.tasks[in.GetTask().GetName()]
 
-	rr := msg.ReplyReport{
-		Rc:       mnet.DefaultOkReplay(),
+	rr := msg2.ReplyReport{
+		Rc:       net2.DefaultOkReplay(),
 		State:    t.state,
 		Progress: t.progress,
 	}
@@ -77,12 +77,12 @@ func (ts *TaskService) ReportState(ctx context.Context, in *msg.ReqReport) (*msg
 }
 
 func (cc *TaskService) DumpTableData(task *cliTask) {
-	logger.LogInfo("DumpData(%s) waiting write signals....", task.name)
+	logger.LogInfof("DumpData(%s) waiting write signals....", task.name)
 	cc.writeSignals[task.name].Wait()
 	conf := export.DefaultConfig()
-	logger.LogInfo("DumpData(%s) start write ....", task.name)
-	extStorage := &storage.SocketStorage{
-		Writer: &storage.SocketStorageWriter{
+	logger.LogInfof("DumpData(%s) start write ....", task.name)
+	extStorage := &storage2.SocketStorage{
+		Writer: &storage2.SocketStorageWriter{
 			Connection: task.con,
 		},
 	}

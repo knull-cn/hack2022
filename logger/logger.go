@@ -1,40 +1,51 @@
 package logger
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"github.com/sirupsen/logrus"
 )
 
-func LogErr(format string, v ...interface{}) {
-	s := fmt.Sprintf(format, v...)
-	log.Output(2, "[ ERR ] "+s)
+var logger *logrus.Logger
+
+func InitLog() {
+	logger = logrus.New()
+
+}
+func getLogger() *logrus.Entry {
+	if logger == nil {
+		panic("logger is not init")
+	}
+	return logger.WithContext(context.WithValue(context.Background(), "sendToFile", true))
 }
 
-func LogWarn(format string, v ...interface{}) {
-	s := fmt.Sprintf(format, v...)
-	log.Output(2, "[ Warn] "+s)
+func LogErrf(format string, v ...interface{}) {
+	getLogger().Errorf(format, v)
 }
 
-func LogInfo(format string, v ...interface{}) {
-	s := fmt.Sprintf(format, v...)
-	log.Output(2, "[ INFO] "+s)
+func LogWarnf(format string, v ...interface{}) {
+	getLogger().Warnf(format, v)
 }
 
-func LogTraceJson(format string, v interface{}) {
+func LogInfof(format string, v ...interface{}) {
+	getLogger().Infof(format, v)
+}
+
+func LogInfo(format string) {
+	getLogger().Info(format)
+}
+
+func LogTraceJsonf(format string, v interface{}) {
 	d, _ := json.Marshal(v)
 	s := fmt.Sprintf(format, string(d))
-	log.Output(2, "[Trace] "+s)
+	getLogger().Tracef(format, s)
 }
 
-func LogTrace(format string, v ...interface{}) {
-	s := fmt.Sprintf(format, v...)
-	log.Output(2, "[Trace] "+s)
+func LogTracef(format string, v ...interface{}) {
+	getLogger().Tracef(format, v)
 }
 
-func LogFatal(format string, v ...interface{}) {
-	s := fmt.Sprintf(format, v...)
-	log.Output(2, "[Fatal] "+s)
-	log.Println("")
-	panic(nil)
+func LogFatalf(format string, v ...interface{}) {
+	getLogger().Fatalf(format, v)
 }

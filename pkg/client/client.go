@@ -1,11 +1,12 @@
-package main
+package client
 
 import (
 	"context"
 	"flag"
 	"fmt"
 	. "github.com/knullhhf/hack22/logger"
-	"github.com/knullhhf/hack22/net/msg"
+	msg2 "github.com/knullhhf/hack22/pkg/net/msg"
+	"github.com/knullhhf/hack22/pkg/utils"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"net"
@@ -15,8 +16,8 @@ import (
 
 type Client struct {
 	serverAddress  string
-	info           msg.ClientInfo
-	serverGrpcTool msg.ToolsManagerClient
+	info           msg2.ClientInfo
+	serverGrpcTool msg2.ToolsManagerClient
 	taskService    TaskService
 
 	ctx    context.Context
@@ -26,8 +27,8 @@ type Client struct {
 type cliTask struct {
 	name     string
 	con      net.Conn
-	info     msg.TaskInfo
-	state    msg.TaskState
+	info     msg2.TaskInfo
+	state    msg2.TaskState
 	progress string
 }
 
@@ -36,28 +37,30 @@ func (cc *Client) startTaskListen(wg *sync.WaitGroup) {
 	cc.taskService.tasks = map[string]*cliTask{}
 	cc.taskService.writeSignals = map[string]*sync.WaitGroup{}
 	clientGrpcServer := grpc.NewServer()
-	msg.RegisterTaskManagerServer(clientGrpcServer, &cc.taskService)
+	msg2.RegisterTaskManagerServer(clientGrpcServer, &cc.taskService)
 	controlListener, err := net.Listen("tcp", cc.info.GetAddress())
 	if err != nil {
-		LogFatal("listen taskAddr(%s) err:%s", cc.info.GetAddress(), err.Error())
+		LogFatalf("listen taskAddr(%s) err:%s", cc.info.GetAddress(), err.Error())
 	}
 	wg.Done()
 	err = clientGrpcServer.Serve(controlListener)
 	if err != nil {
-		LogErr("start client task listen err:%v", err)
+		LogErrf("start client task listen err:%v", err)
 	}
 }
 
-func (cc *Client) Init(serverAddress, clientAddress, name, key string) error {
+func (cc *Client) Init(serverAddress, clientAddress, name string) error {
 	cc.ctx, cc.cancel = context.WithCancel(context.TODO())
 	ctx, cancel := context.WithTimeout(cc.ctx, time.Second*5)
+	defer cancel()
 	cn, err := grpc.DialContext(ctx, serverAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		cancel()
-		return fmt.Errorf("DialContext err:%s", err.Error())
+		return fmt.Errorf("subscribe server grpc err:%v", err)
 	}
-	serverGrpcTool := msg.NewToolsManagerClient(cn)
-	cc.info = msg.ClientInfo{
+	serverGrpcTool := msg2.NewToolsManagerClient(cn)
+	key := utils.GenerateClientUUid()
+	cc.info = msg2.ClientInfo{
 		Name:    name,
 		Key:     key,
 		Address: clientAddress,
@@ -68,18 +71,17 @@ func (cc *Client) Init(serverAddress, clientAddress, name, key string) error {
 }
 
 func (cc *Client) Register() error {
-	replay, err := cc.serverGrpcTool.Register(cc.ctx, &msg.ReqRegister{
+	replay, err := cc.serverGrpcTool.Register(cc.ctx, &msg2.ReqRegister{
 		Cli: &cc.info,
 	})
 	if err != nil {
-		LogInfo("register net err:%s", err.Error())
+		LogInfof("register client[%s] err:%s", cc.info.Name, err.Error())
 		return err
 	}
-	if replay.Rc.Rc == msg.RespCode_rc_OK {
-		LogInfo("Register ok")
+	if replay.Rc.Rc == msg2.RespCode_rc_OK {
+		LogInfof("Register success")
 		return nil
 	}
-	LogErr("Register err:%s", replay.Rc.RespMsg)
 	return nil
 }
 
@@ -92,10 +94,11 @@ var (
 )
 
 func RunClient() {
+	InitLog()
 	flag.Parse()
-	err := client.Init(*serverAddress, *clientAddress, "dumpling-1", "123456")
+	err := client.Init(*serverAddress, *clientAddress, "dumpling-1")
 	if err != nil {
-		LogFatal("Init err:%s", err.Error())
+		LogFatalf("Init err:%s", err.Error())
 	}
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -105,14 +108,10 @@ func RunClient() {
 	wg.Wait()
 	err = client.Register()
 	if err != nil {
-		LogFatal("Regist err:%s", err.Error())
+		LogFatalf("Regist err:%s", err.Error())
 	}
 
 	wg.Add(1)
 	wg.Wait()
 
-}
-
-func main() {
-	RunClient()
 }

@@ -116,6 +116,7 @@ require (
 	github.com/DataDog/zstd v1.4.5 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/apache/thrift v0.13.1-0.20201008052519-daf620915714 // indirect
+	github.com/beego/beego/v2 v2.0.5 // indirect
 	github.com/cockroachdb/errors v1.8.1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20190617123548-eb05cc24525f // indirect
 	github.com/cockroachdb/pebble v0.0.0-20210719141320-8c3bd06debb5 // indirect
@@ -128,19 +129,25 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/golang/glog v1.0.0 // indirect
 	github.com/google/pprof v0.0.0-20211122183932-1daafda22083 // indirect
+	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/iancoleman/strcase v0.2.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jedib0t/go-pretty/v6 v6.2.2 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/joho/sqltocsv v0.0.0-20210428211105-a6d6801d59df // indirect
 	github.com/klauspost/compress v1.15.1 // indirect
 	github.com/klauspost/cpuid v1.3.1 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
+	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/ncw/directio v1.0.5 // indirect
 	github.com/pingcap/badger v1.5.1-0.20220314162537-ab58fbf40580 // indirect
 	github.com/pingcap/goleveldb v0.0.0-20191226122134-f82aafb29989 // indirect
 	github.com/pingcap/sysutil v0.0.0-20220114020952-ea68d2dbf5b4 // indirect
 	github.com/rogpeppe/go-internal v1.6.1 // indirect
+	github.com/shiena/ansicolor v0.0.0-20200904210342-c7312218db18 // indirect
+	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/soheilhy/cmux v0.1.5 // indirect
 	github.com/spf13/cobra v1.5.0 // indirect
 	github.com/stathat/consistent v1.0.0 // indirect
@@ -152,5 +159,7 @@ require (
 	go.uber.org/goleak v1.2.0 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65 // indirect
+	gorm.io/driver/mysql v1.4.1 // indirect
+	gorm.io/gorm v1.24.0 // indirect
 	sourcegraph.com/sourcegraph/appdash v0.0.0-20190731080439-ebfcffb1b5c0 // indirect
 )

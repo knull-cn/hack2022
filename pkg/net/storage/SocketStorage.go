@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"github.com/knullhhf/hack22/logger"
-	"github.com/knullhhf/hack22/net/msg"
+	msg2 "github.com/knullhhf/hack22/pkg/net/msg"
 	"github.com/pingcap/errors"
 	"net"
 	"strings"
@@ -81,8 +81,8 @@ func (u *SocketStorageWriter) Close(ctx context.Context) error {
 
 type SocketStorageReader struct {
 	Connection        net.Conn
-	TaskManagerClient msg.TaskManagerClient
-	TaskInfo          *msg.ReqNewTask
+	TaskManagerClient msg2.TaskManagerClient
+	TaskInfo          *msg2.ReqNewTask
 	IsReadHeader      *bool
 	FirstDataRead     *bool
 }
@@ -100,7 +100,7 @@ func (s *SocketStorageReader) Read(p []byte) (n int, err error) {
 	if s.FirstDataRead == nil || !*s.FirstDataRead {
 		_, err = s.TaskManagerClient.StartTask(ctx, s.TaskInfo)
 		if err != nil {
-			logger.LogErr("start task error:%v", err)
+			logger.LogErrf("start task error:%v", err)
 		}
 		b := true
 		s.FirstDataRead = &b
