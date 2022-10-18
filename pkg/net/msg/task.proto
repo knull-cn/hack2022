@@ -7,5 +7,7 @@ import "msg.proto";
 service TaskManager {
     rpc NewTask (ReqNewTask )returns (ReplyNewTask){}
 
+    rpc StartTask (ReqNewTask )returns (ReplyNewTask){}
+
     rpc ReportState(ReqReport)returns(ReplyReport){}
 }
