@@ -1,4 +1,4 @@
-package client
+package net
 
 import (
     "context"
@@ -11,6 +11,7 @@ import (
     "github.com/lucas-clemente/quic-go"
     "math/big"
     "net"
+    "os"
     "time"
 )
 
@@ -31,6 +32,19 @@ type MyAddr struct {
     addr string
 }
 
+func (ma *MyAddr) String() string {
+    switch ma.ct {
+    case CT_TcpSocket:
+        return fmt.Sprintf("TcpSocket-%s", ma.addr)
+    case CT_UnixSocket:
+        return fmt.Sprintf("UnixSocket-%s", ma.addr)
+    case CT_Quic:
+        return fmt.Sprintf("QuicSocket-%s", ma.addr)
+    default:
+        return fmt.Sprintf("%v-%s", ma.ct, ma.addr)
+    }
+}
+
 type MyConn interface {
     Read(b []byte) (n int, err error)
 
@@ -49,42 +63,74 @@ type MyConn interface {
     SetWriteDeadline(t time.Time) error
 }
 
-func DialByAddr(ma MyAddr) (MyConn, error) {
+func DialByAddr(ma MyAddr, ctx context.Context) (MyConn, error) {
     switch ma.ct {
     case CT_TcpSocket:
         return net.DialTimeout("tcp", ma.addr, dialTimeoutSec)
     case CT_UnixSocket:
         return net.DialTimeout("unix", ma.addr, dialTimeoutSec)
     case CT_Quic:
-        return dialQuic(ma)
+        return dialQuic(ma, ctx)
     default:
         return nil, fmt.Errorf("not support type '%v(%s)'", ma.ct, ma.addr)
     }
 }
 
 type QuicConn struct {
-    quic.Connection
-    quic.Stream
+    qc quic.Connection
+    qs quic.Stream
 }
 
-func dialQuic(ma MyAddr) (MyConn, error) {
+func (qc *QuicConn) Read(b []byte) (n int, err error) {
+    return qc.qs.Read(b)
+}
+
+func (qc *QuicConn) Write(b []byte) (n int, err error) {
+    return qc.qs.Write(b)
+}
+
+func (qc *QuicConn) Close() error {
+    return qc.qs.Close()
+}
+
+func (qc *QuicConn) LocalAddr() net.Addr {
+    return qc.qc.LocalAddr()
+}
+
+func (qc *QuicConn) RemoteAddr() net.Addr {
+    return qc.qc.RemoteAddr()
+}
+
+func (qc *QuicConn) SetDeadline(t time.Time) error {
+    return qc.qs.SetDeadline(t)
+}
+
+func (qc *QuicConn) SetReadDeadline(t time.Time) error {
+    return qc.qs.SetReadDeadline(t)
+}
+
+func (qc *QuicConn) SetWriteDeadline(t time.Time) error {
+    return qc.qs.SetWriteDeadline(t)
+}
+
+func dialQuic(ma MyAddr, ctx context.Context) (MyConn, error) {
     tlsConf := &tls.Config{
         InsecureSkipVerify: true,
         NextProtos:         []string{"quic-echo-example"},
     }
     qc, err := quic.DialAddr(ma.addr, tlsConf, nil)
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("DialAddr %w", err)
     }
-    stream, err := qc.OpenStreamSync(context.TODO())
+    stream, err := qc.OpenStreamSync(ctx)
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("OpenStreamSync %w", err)
     }
     return &QuicConn{qc, stream}, nil
 }
 
 type MyListener interface {
-    Accept() (MyConn, error)
+    Accept(ctx context.Context) (MyConn, error)
 
     Close() error
 
@@ -95,7 +141,7 @@ type netListener struct {
     net.Listener
 }
 
-func (nl *netListener) Accept() (MyConn, error) {
+func (nl *netListener) Accept(ctx context.Context) (MyConn, error) {
     return nl.Listener.Accept()
 }
 
@@ -103,12 +149,12 @@ type quicListener struct {
     quic.Listener
 }
 
-func (nl *quicListener) Accept() (MyConn, error) {
-    con, err := nl.Listener.Accept(context.TODO())
+func (nl *quicListener) Accept(ctx context.Context) (MyConn, error) {
+    con, err := nl.Listener.Accept(ctx)
     if err != nil {
         return nil, err
     }
-    stream, err := con.AcceptStream(context.TODO())
+    stream, err := con.AcceptStream(ctx)
     return &QuicConn{con, stream}, nil
 }
 
@@ -118,6 +164,7 @@ func CreateListener(ma MyAddr) (MyListener, error) {
         l, err := net.Listen("tcp", ma.addr)
         return &netListener{l}, err
     case CT_UnixSocket:
+        os.RemoveAll(ma.addr)
         l, err := net.Listen("unix", ma.addr)
         return &netListener{l}, err
     case CT_Quic:
